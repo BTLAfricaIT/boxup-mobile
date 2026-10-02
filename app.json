@@ -27,10 +27,17 @@
       "expo-router"
     ],
     "extra": {
-      "router": {}
+      "router": {},
+      "eas": {
+        "projectId": "6a5104ad-e5af-456f-9e94-ea316d1e7150"
+      }
     },
     "runtimeVersion": {
       "policy": "appVersion"
+    },
+    "owner": "btl-africa",
+    "updates": {
+      "url": "https://u.expo.dev/6a5104ad-e5af-456f-9e94-ea316d1e7150"
     }
   }
 }
