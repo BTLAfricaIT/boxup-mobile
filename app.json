@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "BoxUp Sales",
+    "slug": "boxup-sales-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "boxupsales",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4d7c0f"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.boxup.sales"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#4d7c0f"
+      },
+      "package": "com.boxup.sales"
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "extra": {
+      "router": {}
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
