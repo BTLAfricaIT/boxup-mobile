@@ -12,6 +12,8 @@ export default function EventsScreen() {
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [form, setForm] = useState({ event_name: '', location: '', region: '', product_id: '', participants: '0', units_distributed: '0', notes: '' })
+  const hidden: string[] = (profile as any)?.project?.hidden_fields || []
+  const show = (k: string) => !hidden.includes(k)
 
   async function load() {
     let eventsQuery = supabase.from('btl_activations').select('*, btl_products(name), btl_projects(name)').order('created_at', { ascending: false }).limit(50)
@@ -84,24 +86,32 @@ export default function EventsScreen() {
           <ScrollView style={{ flex: 1 }}>
             <Text style={styles.label}>Event Name *</Text>
             <TextInput style={styles.input} value={form.event_name} onChangeText={v => setForm(f => ({ ...f, event_name: v }))} placeholder="e.g. Market Day Activation" />
+            {show('location') && <>
             <Text style={styles.label}>Location</Text>
             <TextInput style={styles.input} value={form.location} onChangeText={v => setForm(f => ({ ...f, location: v }))} />
+            </>}
+            {show('region') && <>
             <Text style={styles.label}>Region</Text>
             <TextInput style={styles.input} value={form.region} onChangeText={v => setForm(f => ({ ...f, region: v }))} />
+            </>}
+            {show('product') && <>
             <Text style={styles.label}>Product</Text>
             <Dropdown options={products} value={form.product_id} onChange={id => setForm(f => ({ ...f, product_id: id }))} placeholder="Select product…" />
+            </>}
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <View style={{ flex: 1 }}>
+              {show('participants') && <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Participants</Text>
                 <TextInput style={styles.input} keyboardType="number-pad" value={form.participants} onChangeText={v => setForm(f => ({ ...f, participants: v }))} />
-              </View>
-              <View style={{ flex: 1 }}>
+              </View>}
+              {show('units_distributed') && <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Units Out</Text>
                 <TextInput style={styles.input} keyboardType="number-pad" value={form.units_distributed} onChangeText={v => setForm(f => ({ ...f, units_distributed: v }))} />
-              </View>
+              </View>}
             </View>
+            {show('notes') && <>
             <Text style={styles.label}>Notes</Text>
             <TextInput style={[styles.input, { height: 80 }]} multiline value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} placeholder="Optional…" />
+            </>}
           </ScrollView>
           <TouchableOpacity style={styles.submitBtn} onPress={save} disabled={saving}>
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit Event</Text>}

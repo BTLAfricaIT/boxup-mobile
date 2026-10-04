@@ -14,6 +14,8 @@ export default function VisitsScreen() {
   const [form, setForm] = useState({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' })
   const typedOutlet = (profile as any)?.project?.outlet_mode === 'agent'
   const captureOrders = !!(profile as any)?.project?.capture_orders
+  const hidden: string[] = (profile as any)?.project?.hidden_fields || []
+  const show = (k: string) => !hidden.includes(k)
   const [products, setProducts] = useState<any[]>([])
   const [orderLines, setOrderLines] = useState<{ product_id: string; name: string; quantity: number }[]>([])
   const [pick, setPick] = useState({ product_id: '', quantity: '1' })
@@ -124,12 +126,18 @@ export default function VisitsScreen() {
                 ))}
               </View>
             )}
+            {show('purpose') && <>
             <Text style={styles.label}>Purpose</Text>
             <TextInput style={styles.input} value={form.purpose} onChangeText={v => setForm(f => ({ ...f, purpose: v }))} placeholder="e.g. Restocking, Training…" />
+            </>}
+            {show('outcome') && <>
             <Text style={styles.label}>Outcome</Text>
             <TextInput style={styles.input} value={form.outcome} onChangeText={v => setForm(f => ({ ...f, outcome: v }))} placeholder="What was achieved?" />
+            </>}
+            {show('notes') && <>
             <Text style={styles.label}>Notes</Text>
             <TextInput style={[styles.input, { height: 80 }]} multiline value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} placeholder="Optional…" />
+            </>}
             {captureOrders && (
               <View>
                 <Text style={styles.label}>Sales order (optional)</Text>

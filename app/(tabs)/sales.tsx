@@ -16,6 +16,8 @@ export default function SalesScreen() {
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [form, setForm] = useState({ product_id: '', outlet_id: '', quantity: '1', sale_type: 'activation', notes: '' })
+  const hidden: string[] = (profile as any)?.project?.hidden_fields || []
+  const show = (k: string) => !hidden.includes(k)
 
   async function load() {
     let salesQuery = supabase.from('btl_sales').select('*, btl_products(name), btl_outlets(name), btl_projects(name)').order('created_at', { ascending: false }).limit(50)
@@ -97,6 +99,7 @@ export default function SalesScreen() {
             <Text style={styles.label}>Product</Text>
             <Dropdown options={products} value={form.product_id} onChange={id => setForm(f => ({ ...f, product_id: id }))} placeholder="Select product…" />
 
+            {show('outlet') && <>
             <Text style={styles.label}>Outlet</Text>
             <View style={styles.picker}>
               {outlets.map(o => (
@@ -106,11 +109,13 @@ export default function SalesScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            </>}
 
             <Text style={styles.label}>Quantity</Text>
             <TextInput style={styles.input} keyboardType="number-pad" value={form.quantity}
               onChangeText={v => setForm(f => ({ ...f, quantity: v }))} />
 
+            {show('sale_type') && <>
             <Text style={styles.label}>Type</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
               {['activation', 'volume'].map(t => (
@@ -120,10 +125,13 @@ export default function SalesScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            </>}
 
+            {show('notes') && <>
             <Text style={styles.label}>Notes</Text>
             <TextInput style={[styles.input, { height: 80 }]} multiline value={form.notes}
               onChangeText={v => setForm(f => ({ ...f, notes: v }))} placeholder="Optional…" />
+            </>}
           </ScrollView>
 
           <TouchableOpacity style={styles.submitBtn} onPress={save} disabled={saving}>
