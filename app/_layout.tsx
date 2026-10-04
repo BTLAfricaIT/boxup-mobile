@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router'
 import { AuthProvider, useAuth } from '../contexts/AuthContext'
+import { OfflineProvider } from '../contexts/OfflineContext'
 import { useRouter, useSegments } from 'expo-router'
 import { useEffect } from 'react'
 import { ActivityIndicator, View } from 'react-native'
@@ -30,7 +31,9 @@ function RootGuard() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootGuard />
+      <OfflineProvider>
+        <RootGuard />
+      </OfflineProvider>
     </AuthProvider>
   )
 }

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { Session } from '@supabase/supabase-js'
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '../lib/supabase'
 
 interface Profile {
@@ -31,7 +32,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadProfile(userId: string) {
     const { data } = await supabase.from('profiles').select('id, full_name, email, phone, role, project_id, project:btl_projects!profiles_project_id_fkey(id, name, type, outlet_mode, capture_orders, hidden_fields)').eq('id', userId).single()
-    setProfile(data as any)
+    if (data) {
+      setProfile(data as any)
+      AsyncStorage.setItem('cache:profile:' + userId, JSON.stringify(data)).catch(() => {})
+    } else {
+      // Offline: fall back to the last profile saved on this device
+      const raw = await AsyncStorage.getItem('cache:profile:' + userId).catch(() => null)
+      setProfile(raw ? JSON.parse(raw) : null)
+    }
   }
 
   async function refreshProfile() {

@@ -33,6 +33,7 @@ export default function DashboardScreen() {
       supabase.from('btl_visits').select('id, visit_date').gte('visit_date', thisMonth + '-01'),
       supabase.from('btl_activations').select('participants, activation_date').gte('activation_date', thisMonth + '-01'),
     ])
+    if (s.error || v.error || a.error) return // offline: keep the numbers already on screen
     const salesQty = (s.data || []).reduce((sum: number, r: any) => sum + r.quantity, 0)
     const participants = (a.data || []).reduce((sum: number, r: any) => sum + (r.participants || 0), 0)
     setStats({ sales: salesQty, visits: (v.data || []).length, events: (a.data || []).length, participants })

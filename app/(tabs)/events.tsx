@@ -3,9 +3,13 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet,
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Dropdown from '../../components/Dropdown'
+import SyncBanner from '../../components/SyncBanner'
+import { useOffline } from '../../contexts/OfflineContext'
+import { cachedQuery } from '../../lib/offline'
 
 export default function EventsScreen() {
   const { profile } = useAuth()
+  const { submit, pending, tick } = useOffline()
   const [events, setEvents] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -20,21 +24,22 @@ export default function EventsScreen() {
     if (profile?.project_id) eventsQuery = eventsQuery.eq('project_id', profile.project_id)
     let productsQuery = supabase.from('btl_products').select('id, name').eq('is_active', true).order('name')
     if (profile?.project_id) productsQuery = productsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
+    const ck = `${profile?.id}:${profile?.project_id}`
     const [a, p] = await Promise.all([
-      eventsQuery,
-      productsQuery,
+      cachedQuery(ck + ':events', eventsQuery),
+      cachedQuery(ck + ':products', productsQuery),
     ])
     if (a.data) setEvents(a.data)
     if (p.data) setProducts(p.data)
   }
 
-  useEffect(() => { load() }, [profile?.project_id])
+  useEffect(() => { load() }, [profile?.project_id, tick])
 
   async function save() {
     if (!form.event_name.trim()) { Alert.alert('Error', 'Event name is required'); return }
     if (!profile?.project_id) { Alert.alert('No project assigned', 'Choose a project on your Profile tab before logging an event.'); return }
     setSaving(true)
-    const { error } = await supabase.from('btl_activations').insert({
+    const r = await submit('event', {
       agent_id: profile!.id,
       event_name: form.event_name.trim(),
       location: form.location || null,
@@ -45,9 +50,10 @@ export default function EventsScreen() {
       units_distributed: parseInt(form.units_distributed) || 0,
       notes: form.notes || null,
       activation_date: new Date().toISOString().slice(0, 10),
-    })
+    }, undefined, form.event_name.trim())
     setSaving(false)
-    if (error) { Alert.alert('Error', error.message); return }
+    if (r.status === 'error') { Alert.alert('Error', r.message); return }
+    if (r.status === 'queued') Alert.alert('Saved offline', 'No connection right now. This entry will sync automatically when you are back online.')
     setShowForm(false); setForm({ event_name: '', location: '', region: '', product_id: '', participants: '0', units_distributed: '0', notes: '' }); load()
   }
 
@@ -63,7 +69,14 @@ export default function EventsScreen() {
       </View>
       {!profile?.project_id && <Text style={styles.noProjectBanner}>Choose your project on the Profile tab to start logging.</Text>}
 
+      <SyncBanner />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        {pending.filter(p => p.kind === 'event').map(p => (
+          <View key={p.id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#f59e0b', marginTop: 12 }]}>
+            <Text style={styles.cardTitle}>{p.label}</Text>
+            <Text style={styles.cardSub}>Waiting to sync · {p.row.activation_date}</Text>
+          </View>
+        ))}
         {events.map((e, i) => (
           <View key={e.id} style={[styles.card, i === 0 && { marginTop: 12 }]}>
             <Text style={styles.cardTitle}>{e.event_name}</Text>

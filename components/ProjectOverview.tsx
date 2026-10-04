@@ -31,16 +31,21 @@ export default function ProjectOverview({ project, reloadKey }: { project: { id:
     async function load() {
       setLoading(true)
       let data: Row[] = []
+      let failed = false
       if (type === 'sales') {
-        const { data: d } = await supabase.from('btl_sales').select('agent_id, quantity, sale_date, btl_products(name)').eq('project_id', project.id).order('sale_date', { ascending: false }).limit(5000)
+        const { data: d, error: e } = await supabase.from('btl_sales').select('agent_id, quantity, sale_date, btl_products(name)').eq('project_id', project.id).order('sale_date', { ascending: false }).limit(5000)
+        failed = !!e
         data = (d || []).map((r: any) => ({ agent_id: r.agent_id, date: r.sale_date, value: r.quantity || 0, label: r.btl_products?.name || 'Unknown product' }))
       } else if (type === 'visit') {
-        const { data: d } = await supabase.from('btl_visits').select('agent_id, visit_date, outlet_name, btl_outlets(name)').eq('project_id', project.id).order('visit_date', { ascending: false }).limit(5000)
+        const { data: d, error: e } = await supabase.from('btl_visits').select('agent_id, visit_date, outlet_name, btl_outlets(name)').eq('project_id', project.id).order('visit_date', { ascending: false }).limit(5000)
+        failed = !!e
         data = (d || []).map((r: any) => ({ agent_id: r.agent_id, date: r.visit_date, value: 1, label: r.btl_outlets?.name || r.outlet_name || 'Unknown outlet' }))
       } else {
-        const { data: d } = await supabase.from('btl_activations').select('agent_id, event_name, participants, units_distributed, activation_date').eq('project_id', project.id).order('activation_date', { ascending: false }).limit(5000)
+        const { data: d, error: e } = await supabase.from('btl_activations').select('agent_id, event_name, participants, units_distributed, activation_date').eq('project_id', project.id).order('activation_date', { ascending: false }).limit(5000)
+        failed = !!e
         data = (d || []).map((r: any) => ({ agent_id: r.agent_id, date: r.activation_date, value: 1, label: r.event_name || 'Event', extra: r.participants || 0, extra2: r.units_distributed || 0 }))
       }
+      if (failed) { if (!cancelled) setLoading(false); return } // offline: keep what is already shown
       let orderQty = 0
       if (type === 'visit' && project.capture_orders) {
         const { data: o } = await supabase.from('btl_sales').select('quantity').eq('project_id', project.id).eq('sale_type', 'order')

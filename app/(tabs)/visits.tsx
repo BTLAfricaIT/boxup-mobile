@@ -3,9 +3,13 @@ import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet,
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Dropdown from '../../components/Dropdown'
+import SyncBanner from '../../components/SyncBanner'
+import { useOffline } from '../../contexts/OfflineContext'
+import { cachedQuery, uuid } from '../../lib/offline'
 
 export default function VisitsScreen() {
   const { profile } = useAuth()
+  const { submit, pending, tick } = useOffline()
   const [visits, setVisits] = useState<any[]>([])
   const [outlets, setOutlets] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
@@ -35,24 +39,40 @@ export default function VisitsScreen() {
     if (profile?.project_id) outletsQuery = outletsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
     let productsQuery = supabase.from('btl_products').select('id, name').eq('is_active', true).order('name')
     if (profile?.project_id) productsQuery = productsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
+    const ck = `${profile?.id}:${profile?.project_id}`
     const [v, o, p] = await Promise.all([
-      visitsQuery,
-      outletsQuery,
-      productsQuery,
+      cachedQuery(ck + ':visits', visitsQuery),
+      cachedQuery(ck + ':outlets', outletsQuery),
+      cachedQuery(ck + ':products', productsQuery),
     ])
     if (v.data) setVisits(v.data)
     if (o.data) setOutlets(o.data)
     if (p.data) setProducts(p.data)
   }
 
-  useEffect(() => { load() }, [profile?.project_id])
+  useEffect(() => { load() }, [profile?.project_id, tick])
 
   async function save() {
     if (!profile?.project_id) { Alert.alert('No project assigned', 'Choose a project on your Profile tab before logging a visit.'); return }
     if (typedOutlet && !form.outlet_name.trim()) { Alert.alert('Outlet required', 'Type the name of the outlet you visited.'); return }
     setSaving(true)
     const today = new Date().toISOString().slice(0, 10)
-    const { data: visit, error } = await supabase.from('btl_visits').insert({
+    const visitId = uuid()
+    const orders = captureOrders && orderLines.length ? orderLines.map(l => ({
+      id: uuid(),
+      agent_id: profile!.id,
+      visit_id: visitId,
+      product_id: l.product_id,
+      outlet_id: typedOutlet ? null : (form.outlet_id || null),
+      project_id: profile.project_id,
+      quantity: l.quantity,
+      sale_type: 'order',
+      notes: typedOutlet ? `Order from visit to ${form.outlet_name.trim()}` : 'Order from visit',
+      sale_date: today,
+    })) : undefined
+    const outletLabel = typedOutlet ? form.outlet_name.trim() : (outlets.find(o => o.id === form.outlet_id)?.name || 'Visit')
+    const r = await submit('visit', {
+      id: visitId,
       agent_id: profile!.id,
       outlet_id: typedOutlet ? null : (form.outlet_id || null),
       outlet_name: typedOutlet ? form.outlet_name.trim() : null,
@@ -61,22 +81,9 @@ export default function VisitsScreen() {
       outcome: form.outcome || null,
       notes: form.notes || null,
       visit_date: today,
-    }).select('id').single()
-    if (error || !visit) { setSaving(false); Alert.alert('Error', error?.message || 'Could not save visit'); return }
-    if (captureOrders && orderLines.length) {
-      const { error: oErr } = await supabase.from('btl_sales').insert(orderLines.map(l => ({
-        agent_id: profile!.id,
-        visit_id: visit.id,
-        product_id: l.product_id,
-        outlet_id: typedOutlet ? null : (form.outlet_id || null),
-        project_id: profile.project_id,
-        quantity: l.quantity,
-        sale_type: 'order',
-        notes: typedOutlet ? `Order from visit to ${form.outlet_name.trim()}` : 'Order from visit',
-        sale_date: today,
-      })))
-      if (oErr) { setSaving(false); Alert.alert('Visit saved, orders failed', oErr.message); load(); return }
-    }
+    }, orders, orders ? `${outletLabel} (+${orders.length} order line${orders.length > 1 ? 's' : ''})` : outletLabel)
+    if (r.status === 'error') { setSaving(false); Alert.alert('Error', r.message); return }
+    if (r.status === 'queued') Alert.alert('Saved offline', 'No connection right now. This visit will sync automatically when you are back online.')
     setSaving(false)
     setShowForm(false); setForm({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' }); setOrderLines([]); setPick({ product_id: '', quantity: '1' }); load()
   }
@@ -93,7 +100,14 @@ export default function VisitsScreen() {
       </View>
       {!profile?.project_id && <Text style={styles.noProjectBanner}>Choose your project on the Profile tab to start logging.</Text>}
 
+      <SyncBanner />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        {pending.filter(p => p.kind === 'visit').map(p => (
+          <View key={p.id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#f59e0b', marginTop: 12 }]}>
+            <Text style={styles.cardTitle}>{p.label}</Text>
+            <Text style={styles.cardSub}>Waiting to sync · {p.row.visit_date}</Text>
+          </View>
+        ))}
         {visits.map((v, i) => (
           <View key={v.id} style={[styles.card, i === 0 && { marginTop: 12 }]}>
             <Text style={styles.cardTitle}>{v.btl_outlets?.name || v.outlet_name || 'Unknown outlet'}</Text>

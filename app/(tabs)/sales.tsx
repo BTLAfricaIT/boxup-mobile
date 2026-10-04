@@ -6,9 +6,13 @@ import {
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
 import Dropdown from '../../components/Dropdown'
+import SyncBanner from '../../components/SyncBanner'
+import { useOffline } from '../../contexts/OfflineContext'
+import { cachedQuery } from '../../lib/offline'
 
 export default function SalesScreen() {
   const { profile } = useAuth()
+  const { submit, pending, tick } = useOffline()
   const [sales, setSales] = useState<any[]>([])
   const [products, setProducts] = useState<any[]>([])
   const [outlets, setOutlets] = useState<any[]>([])
@@ -26,33 +30,36 @@ export default function SalesScreen() {
     if (profile?.project_id) productsQuery = productsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
     let outletsQuery = supabase.from('btl_outlets').select('id, name').eq('is_active', true).order('name')
     if (profile?.project_id) outletsQuery = outletsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
+    const ck = `${profile?.id}:${profile?.project_id}`
     const [s, p, o] = await Promise.all([
-      salesQuery,
-      productsQuery,
-      outletsQuery,
+      cachedQuery(ck + ':sales', salesQuery),
+      cachedQuery(ck + ':products', productsQuery),
+      cachedQuery(ck + ':outlets', outletsQuery),
     ])
     if (s.data) setSales(s.data)
     if (p.data) setProducts(p.data)
     if (o.data) setOutlets(o.data)
   }
 
-  useEffect(() => { load() }, [profile?.project_id])
+  useEffect(() => { load() }, [profile?.project_id, tick])
 
   async function save() {
     if (!profile?.project_id) { Alert.alert('No project assigned', 'Choose a project on your Profile tab before logging a sale.'); return }
     setSaving(true)
-    const { error } = await supabase.from('btl_sales').insert({
+    const qty = parseInt(form.quantity) || 1
+    const r = await submit('sale', {
       agent_id: profile!.id,
       product_id: form.product_id || null,
       outlet_id: form.outlet_id || null,
       project_id: profile.project_id,
-      quantity: parseInt(form.quantity) || 1,
+      quantity: qty,
       sale_type: form.sale_type,
       notes: form.notes || null,
       sale_date: new Date().toISOString().slice(0, 10),
-    })
+    }, undefined, `${qty}× ${products.find(p => p.id === form.product_id)?.name || 'Sale'}`)
     setSaving(false)
-    if (error) { Alert.alert('Error', error.message); return }
+    if (r.status === 'error') { Alert.alert('Error', r.message); return }
+    if (r.status === 'queued') Alert.alert('Saved offline', 'No connection right now. This entry will sync automatically when you are back online.')
     setShowForm(false)
     setForm({ product_id: '', outlet_id: '', quantity: '1', sale_type: 'activation', notes: '' })
     load()
@@ -70,7 +77,14 @@ export default function SalesScreen() {
       </View>
       {!profile?.project_id && <Text style={styles.noProjectBanner}>Choose your project on the Profile tab to start logging.</Text>}
 
+      <SyncBanner />
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        {pending.filter(p => p.kind === 'sale').map(p => (
+          <View key={p.id} style={[styles.card, { borderLeftWidth: 4, borderLeftColor: '#f59e0b', marginTop: 12 }]}>
+            <Text style={styles.cardTitle}>{p.label}</Text>
+            <Text style={styles.cardSub}>Waiting to sync · {p.row.sale_date}</Text>
+          </View>
+        ))}
         {sales.map((s, i) => (
           <View key={s.id} style={[styles.card, i === 0 && { marginTop: 12 }]}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
