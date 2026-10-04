@@ -4,8 +4,8 @@ import { useAuth } from '../../contexts/AuthContext'
 
 export default function TabLayout() {
   const { profile } = useAuth()
-  // Agents are scoped to one project with one type; managers/staff/no-project-yet see everything.
-  const type = profile?.role === 'agent' ? profile?.project?.type : undefined
+  // Anyone with a selected project (agents, or admins/managers who picked one) sees that project's tab; otherwise all.
+  const type = profile?.project?.type || undefined
   const showSales = !type || type === 'sales'
   const showVisits = !type || type === 'visit'
   const showEvents = !type || type === 'event'

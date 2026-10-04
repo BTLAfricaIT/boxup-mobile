@@ -17,7 +17,10 @@ export default function ProfileScreen() {
       .then(({ data }) => { if (data) setProjects(data) })
   }, [])
 
-  async function changeProject(id: string) {
+  const canPick = ['agent', 'admin', 'manager'].includes(profile?.role || '')
+  const canClear = profile?.role === 'admin' || profile?.role === 'manager'
+
+  async function changeProject(id: string | null) {
     setSaving(true)
     const { error } = await supabase.from('profiles').update({ project_id: id }).eq('id', profile!.id)
     setSaving(false)
@@ -38,10 +41,10 @@ export default function ProfileScreen() {
         <Text style={styles.roleText}>{(profile?.role || 'staff').replace(/_/g, ' ').toUpperCase()}</Text>
       </View>
 
-      {profile?.role === 'agent' && (
+      {canPick && (
         <TouchableOpacity style={styles.projectCard} onPress={() => setShowPicker(true)}>
           <Text style={styles.projectLabel}>PROJECT</Text>
-          <Text style={styles.projectName}>{currentProject?.name || 'Not assigned — tap to choose'}</Text>
+          <Text style={styles.projectName}>{currentProject?.name || (canClear ? 'All projects — tap to choose' : 'Not assigned — tap to choose')}</Text>
           {currentProject?.type && <Text style={styles.projectType}>{typeLabels[currentProject.type] || currentProject.type}</Text>}
           <Text style={styles.projectChange}>Change project</Text>
         </TouchableOpacity>
@@ -58,6 +61,12 @@ export default function ProfileScreen() {
             <TouchableOpacity onPress={() => setShowPicker(false)}><Text style={{ color: '#64748b', fontSize: 15 }}>Cancel</Text></TouchableOpacity>
           </View>
           <ScrollView>
+            {canClear && (
+              <TouchableOpacity disabled={saving} onPress={() => changeProject(null)}
+                style={[styles.projectOption, !profile?.project_id && styles.projectOptionActive]}>
+                <Text style={[styles.projectOptionText, !profile?.project_id && styles.projectOptionTextActive]}>All projects (view only)</Text>
+              </TouchableOpacity>
+            )}
             {projects.map(p => (
               <TouchableOpacity key={p.id} disabled={saving} onPress={() => changeProject(p.id)}
                 style={[styles.projectOption, profile?.project_id === p.id && styles.projectOptionActive]}>
