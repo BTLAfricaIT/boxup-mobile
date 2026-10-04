@@ -10,7 +10,8 @@ export default function VisitsScreen() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [form, setForm] = useState({ outlet_id: '', purpose: '', outcome: '', notes: '' })
+  const [form, setForm] = useState({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' })
+  const typedOutlet = (profile as any)?.project?.outlet_mode === 'agent'
 
   async function load() {
     let visitsQuery = supabase.from('btl_visits').select('*, btl_outlets(name), btl_projects(name)').order('created_at', { ascending: false }).limit(50)
@@ -29,10 +30,12 @@ export default function VisitsScreen() {
 
   async function save() {
     if (!profile?.project_id) { Alert.alert('No project assigned', 'Choose a project on your Profile tab before logging a visit.'); return }
+    if (typedOutlet && !form.outlet_name.trim()) { Alert.alert('Outlet required', 'Type the name of the outlet you visited.'); return }
     setSaving(true)
     const { error } = await supabase.from('btl_visits').insert({
       agent_id: profile!.id,
-      outlet_id: form.outlet_id || null,
+      outlet_id: typedOutlet ? null : (form.outlet_id || null),
+      outlet_name: typedOutlet ? form.outlet_name.trim() : null,
       project_id: profile.project_id,
       purpose: form.purpose || null,
       outcome: form.outcome || null,
@@ -41,7 +44,7 @@ export default function VisitsScreen() {
     })
     setSaving(false)
     if (error) { Alert.alert('Error', error.message); return }
-    setShowForm(false); setForm({ outlet_id: '', purpose: '', outcome: '', notes: '' }); load()
+    setShowForm(false); setForm({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' }); load()
   }
 
   async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false) }
@@ -59,7 +62,7 @@ export default function VisitsScreen() {
       <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {visits.map((v, i) => (
           <View key={v.id} style={[styles.card, i === 0 && { marginTop: 12 }]}>
-            <Text style={styles.cardTitle}>{v.btl_outlets?.name || 'Unknown outlet'}</Text>
+            <Text style={styles.cardTitle}>{v.btl_outlets?.name || v.outlet_name || 'Unknown outlet'}</Text>
             <Text style={styles.cardSub}>{v.visit_date}{v.btl_projects?.name ? ` · ${v.btl_projects.name}` : ''}</Text>
             {v.purpose && <Text style={styles.detail}>Purpose: {v.purpose}</Text>}
             {v.outcome && <Text style={styles.detail}>Outcome: {v.outcome}</Text>}
@@ -77,14 +80,18 @@ export default function VisitsScreen() {
 
           <ScrollView style={{ flex: 1 }}>
             <Text style={styles.label}>Outlet</Text>
-            <View style={styles.picker}>
-              {outlets.map(o => (
-                <TouchableOpacity key={o.id} onPress={() => setForm(f => ({ ...f, outlet_id: o.id }))}
-                  style={[styles.option, form.outlet_id === o.id && styles.optionActive]}>
-                  <Text style={[styles.optionText, form.outlet_id === o.id && styles.optionTextActive]}>{o.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            {typedOutlet ? (
+              <TextInput style={styles.input} value={form.outlet_name} onChangeText={v => setForm(f => ({ ...f, outlet_name: v }))} placeholder="Type the outlet you visited" />
+            ) : (
+              <View style={styles.picker}>
+                {outlets.map(o => (
+                  <TouchableOpacity key={o.id} onPress={() => setForm(f => ({ ...f, outlet_id: o.id }))}
+                    style={[styles.option, form.outlet_id === o.id && styles.optionActive]}>
+                    <Text style={[styles.optionText, form.outlet_id === o.id && styles.optionTextActive]}>{o.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             <Text style={styles.label}>Purpose</Text>
             <TextInput style={styles.input} value={form.purpose} onChangeText={v => setForm(f => ({ ...f, purpose: v }))} placeholder="e.g. Restocking, Training…" />
             <Text style={styles.label}>Outcome</Text>
