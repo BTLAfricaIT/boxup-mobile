@@ -12,18 +12,34 @@ export default function VisitsScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [form, setForm] = useState({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' })
   const typedOutlet = (profile as any)?.project?.outlet_mode === 'agent'
+  const captureOrders = !!(profile as any)?.project?.capture_orders
+  const [products, setProducts] = useState<any[]>([])
+  const [orderLines, setOrderLines] = useState<{ product_id: string; name: string; quantity: number }[]>([])
+  const [pick, setPick] = useState({ product_id: '', quantity: '1' })
+
+  function addLine() {
+    const p = products.find(x => x.id === pick.product_id)
+    const qty = parseInt(pick.quantity) || 0
+    if (!p || qty < 1) { Alert.alert('Order line', 'Choose a product and a quantity of at least 1.'); return }
+    setOrderLines(l => [...l, { product_id: p.id, name: p.name, quantity: qty }])
+    setPick({ product_id: '', quantity: '1' })
+  }
 
   async function load() {
     let visitsQuery = supabase.from('btl_visits').select('*, btl_outlets(name), btl_projects(name)').order('created_at', { ascending: false }).limit(50)
     if (profile?.project_id) visitsQuery = visitsQuery.eq('project_id', profile.project_id)
     let outletsQuery = supabase.from('btl_outlets').select('id, name').eq('is_active', true).order('name')
     if (profile?.project_id) outletsQuery = outletsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
-    const [v, o] = await Promise.all([
+    let productsQuery = supabase.from('btl_products').select('id, name').eq('is_active', true).order('name')
+    if (profile?.project_id) productsQuery = productsQuery.or(`project_id.is.null,project_id.eq.${profile.project_id}`)
+    const [v, o, p] = await Promise.all([
       visitsQuery,
       outletsQuery,
+      productsQuery,
     ])
     if (v.data) setVisits(v.data)
     if (o.data) setOutlets(o.data)
+    if (p.data) setProducts(p.data)
   }
 
   useEffect(() => { load() }, [profile?.project_id])
@@ -32,7 +48,8 @@ export default function VisitsScreen() {
     if (!profile?.project_id) { Alert.alert('No project assigned', 'Choose a project on your Profile tab before logging a visit.'); return }
     if (typedOutlet && !form.outlet_name.trim()) { Alert.alert('Outlet required', 'Type the name of the outlet you visited.'); return }
     setSaving(true)
-    const { error } = await supabase.from('btl_visits').insert({
+    const today = new Date().toISOString().slice(0, 10)
+    const { data: visit, error } = await supabase.from('btl_visits').insert({
       agent_id: profile!.id,
       outlet_id: typedOutlet ? null : (form.outlet_id || null),
       outlet_name: typedOutlet ? form.outlet_name.trim() : null,
@@ -40,11 +57,25 @@ export default function VisitsScreen() {
       purpose: form.purpose || null,
       outcome: form.outcome || null,
       notes: form.notes || null,
-      visit_date: new Date().toISOString().slice(0, 10),
-    })
+      visit_date: today,
+    }).select('id').single()
+    if (error || !visit) { setSaving(false); Alert.alert('Error', error?.message || 'Could not save visit'); return }
+    if (captureOrders && orderLines.length) {
+      const { error: oErr } = await supabase.from('btl_sales').insert(orderLines.map(l => ({
+        agent_id: profile!.id,
+        visit_id: visit.id,
+        product_id: l.product_id,
+        outlet_id: typedOutlet ? null : (form.outlet_id || null),
+        project_id: profile.project_id,
+        quantity: l.quantity,
+        sale_type: 'order',
+        notes: typedOutlet ? `Order from visit to ${form.outlet_name.trim()}` : 'Order from visit',
+        sale_date: today,
+      })))
+      if (oErr) { setSaving(false); Alert.alert('Visit saved, orders failed', oErr.message); load(); return }
+    }
     setSaving(false)
-    if (error) { Alert.alert('Error', error.message); return }
-    setShowForm(false); setForm({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' }); load()
+    setShowForm(false); setForm({ outlet_id: '', outlet_name: '', purpose: '', outcome: '', notes: '' }); setOrderLines([]); setPick({ product_id: '', quantity: '1' }); load()
   }
 
   async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false) }
@@ -98,6 +129,31 @@ export default function VisitsScreen() {
             <TextInput style={styles.input} value={form.outcome} onChangeText={v => setForm(f => ({ ...f, outcome: v }))} placeholder="What was achieved?" />
             <Text style={styles.label}>Notes</Text>
             <TextInput style={[styles.input, { height: 80 }]} multiline value={form.notes} onChangeText={v => setForm(f => ({ ...f, notes: v }))} placeholder="Optional…" />
+            {captureOrders && (
+              <View>
+                <Text style={styles.label}>Sales order (optional)</Text>
+                {orderLines.map((l, i) => (
+                  <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={{ fontSize: 14, color: '#1e293b' }}>{l.quantity} × {l.name}</Text>
+                    <TouchableOpacity onPress={() => setOrderLines(ls => ls.filter((_, j) => j !== i))}><Text style={{ color: '#dc2626', fontSize: 13 }}>Remove</Text></TouchableOpacity>
+                  </View>
+                ))}
+                <View style={styles.picker}>
+                  {products.map(p => (
+                    <TouchableOpacity key={p.id} onPress={() => setPick(x => ({ ...x, product_id: p.id }))}
+                      style={[styles.option, pick.product_id === p.id && styles.optionActive]}>
+                      <Text style={[styles.optionText, pick.product_id === p.id && styles.optionTextActive]}>{p.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TextInput style={[styles.input, { flex: 1 }]} keyboardType="number-pad" value={pick.quantity} onChangeText={v => setPick(x => ({ ...x, quantity: v }))} placeholder="Qty" />
+                  <TouchableOpacity style={[styles.submitBtn, { backgroundColor: '#4d7c0f', marginTop: 0, marginBottom: 16, paddingHorizontal: 20, justifyContent: 'center' }]} onPress={addLine}>
+                    <Text style={styles.submitText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           <TouchableOpacity style={[styles.submitBtn, { backgroundColor: '#059669' }]} onPress={save} disabled={saving}>
