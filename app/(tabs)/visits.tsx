@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, ActivityIndicator, RefreshControl } from 'react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import Dropdown from '../../components/Dropdown'
 
 export default function VisitsScreen() {
   const { profile } = useAuth()
@@ -138,14 +139,7 @@ export default function VisitsScreen() {
                     <TouchableOpacity onPress={() => setOrderLines(ls => ls.filter((_, j) => j !== i))}><Text style={{ color: '#dc2626', fontSize: 13 }}>Remove</Text></TouchableOpacity>
                   </View>
                 ))}
-                <View style={styles.picker}>
-                  {products.map(p => (
-                    <TouchableOpacity key={p.id} onPress={() => setPick(x => ({ ...x, product_id: p.id }))}
-                      style={[styles.option, pick.product_id === p.id && styles.optionActive]}>
-                      <Text style={[styles.optionText, pick.product_id === p.id && styles.optionTextActive]}>{p.name}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <Dropdown options={products} value={pick.product_id} onChange={id => setPick(x => ({ ...x, product_id: id }))} placeholder="Select product…" />
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TextInput style={[styles.input, { flex: 1 }]} keyboardType="number-pad" value={pick.quantity} onChangeText={v => setPick(x => ({ ...x, quantity: v }))} placeholder="Qty" />
                   <TouchableOpacity style={[styles.submitBtn, { backgroundColor: '#4d7c0f', marginTop: 0, marginBottom: 16, paddingHorizontal: 20, justifyContent: 'center' }]} onPress={addLine}>

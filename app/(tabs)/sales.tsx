@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import Dropdown from '../../components/Dropdown'
 
 export default function SalesScreen() {
   const { profile } = useAuth()
@@ -94,14 +95,7 @@ export default function SalesScreen() {
 
           <ScrollView style={{ flex: 1 }}>
             <Text style={styles.label}>Product</Text>
-            <View style={styles.picker}>
-              {products.map(p => (
-                <TouchableOpacity key={p.id} onPress={() => setForm(f => ({ ...f, product_id: p.id }))}
-                  style={[styles.option, form.product_id === p.id && styles.optionActive]}>
-                  <Text style={[styles.optionText, form.product_id === p.id && styles.optionTextActive]}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Dropdown options={products} value={form.product_id} onChange={id => setForm(f => ({ ...f, product_id: id }))} placeholder="Select product…" />
 
             <Text style={styles.label}>Outlet</Text>
             <View style={styles.picker}>

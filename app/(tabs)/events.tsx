@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, ActivityIndicator, RefreshControl } from 'react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import Dropdown from '../../components/Dropdown'
 
 export default function EventsScreen() {
   const { profile } = useAuth()
@@ -88,14 +89,7 @@ export default function EventsScreen() {
             <Text style={styles.label}>Region</Text>
             <TextInput style={styles.input} value={form.region} onChangeText={v => setForm(f => ({ ...f, region: v }))} />
             <Text style={styles.label}>Product</Text>
-            <View style={styles.picker}>
-              {products.map(p => (
-                <TouchableOpacity key={p.id} onPress={() => setForm(f => ({ ...f, product_id: p.id }))}
-                  style={[styles.option, form.product_id === p.id && styles.optionActive]}>
-                  <Text style={[styles.optionText, form.product_id === p.id && styles.optionTextActive]}>{p.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Dropdown options={products} value={form.product_id} onChange={id => setForm(f => ({ ...f, product_id: id }))} placeholder="Select product…" />
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.label}>Participants</Text>
