@@ -3,6 +3,7 @@ import { useFocusEffect } from 'expo-router'
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import ProjectOverview from '../../components/ProjectOverview'
 
 interface StatCard { label: string; value: number; color: string }
 
@@ -22,8 +23,11 @@ export default function DashboardScreen() {
   const thisMonth = new Date().toISOString().slice(0, 7)
   const today = new Date().toISOString().slice(0, 10)
   const projectType = profile?.project?.type
+  const isOverview = (profile?.role === 'admin' || profile?.role === 'manager') && !!profile?.project
+  const [reloadKey, setReloadKey] = useState(0)
 
   async function load() {
+    if (isOverview) { setReloadKey(k => k + 1); return }
     const [s, v, a] = await Promise.all([
       supabase.from('btl_sales').select('quantity, sale_date').gte('sale_date', thisMonth + '-01'),
       supabase.from('btl_visits').select('id, visit_date').gte('visit_date', thisMonth + '-01'),
@@ -73,7 +77,7 @@ export default function DashboardScreen() {
     }
   }
 
-  useFocusEffect(useCallback(() => { load() }, [profile?.id, profile?.project_id]))
+  useFocusEffect(useCallback(() => { load() }, [profile?.id, profile?.project_id, profile?.role]))
 
   async function onRefresh() { setRefreshing(true); await load(); setRefreshing(false) }
 
@@ -86,6 +90,15 @@ export default function DashboardScreen() {
   }
 
   const pct = target && target.target_qty > 0 ? Math.min(100, Math.round((achieved / target.target_qty) * 100)) : 0
+
+  if (isOverview && profile?.project) {
+    return (
+      <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+        <ProjectOverview project={profile.project as any} reloadKey={reloadKey} />
+        <View style={{ height: 24 }} />
+      </ScrollView>
+    )
+  }
 
   return (
     <ScrollView style={styles.container} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
